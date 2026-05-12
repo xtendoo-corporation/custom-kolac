@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kolac_account_subaccount_map_tree" model="ir.ui.view">
+        <field name="name">kolac.account.subaccount.map.tree</field>
+        <field name="model">kolac.account.subaccount.map</field>
+        <field name="arch" type="xml">
+            <list string="Equivalencias de subcuentas" multi_edit="1">
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="source_code"/>
+                <field name="source_name" optional="show"/>
+                <field name="mapping_type"/>
+                <field name="target_account_id"/>
+                <field name="partner_id" optional="show"/>
+                <field name="asset_id" optional="show"/>
+                <field name="tax_id" optional="show"/>
+                <field name="review_required" optional="show"/>
+                <field name="state" optional="show"/>
+                <field name="note" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_kolac_account_subaccount_map_form" model="ir.ui.view">
+        <field name="name">kolac.account.subaccount.map.form</field>
+        <field name="model">kolac.account.subaccount.map</field>
+        <field name="arch" type="xml">
+            <form string="Equivalencia de subcuenta">
+                <sheet>
+                    <group>
+                        <field name="company_id" groups="base.group_multi_company"/>
+                        <field name="source_code"/>
+                        <field name="source_name"/>
+                        <field name="source_origin"/>
+                        <field name="mapping_type"/>
+                        <field name="target_account_id"/>
+                        <field name="target_account_code" readonly="1"/>
+                        <field name="partner_id"/>
+                        <field name="asset_id"/>
+                        <field name="tax_id"/>
+                        <field name="action"/>
+                        <field name="state"/>
+                        <field name="review_required"/>
+                        <field name="warning_message"/>
+                        <field name="import_batch_id" readonly="1"/>
+                        <field name="note"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_kolac_account_subaccount_map" model="ir.actions.act_window">
+        <field name="name">Equivalencias de subcuentas</field>
+        <field name="res_model">kolac.account.subaccount.map</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_kolac_account_subaccount_map"
+              name="Equivalencias subcuentas"
+              parent="account.menu_finance_configuration"
+              action="action_kolac_account_subaccount_map"
+              sequence="85"
+              groups="account.group_account_user"/>
+</odoo>

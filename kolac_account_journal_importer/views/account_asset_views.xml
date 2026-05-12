@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_account_asset_form_kolac_traceability" model="ir.ui.view">
+        <field name="name">account.asset.form.kolac.traceability</field>
+        <field name="model">account.asset</field>
+        <field name="inherit_id" ref="account_asset.view_account_asset_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook[@colspan='4']" position="inside">
+                <page string="Kolac" invisible="not kolac_old_asset_account_code and not kolac_import_batch_id and not kolac_warning_message">
+                    <group>
+                        <group string="Trazabilidad origen">
+                            <field name="kolac_old_asset_account_code"/>
+                            <field name="kolac_old_asset_account_name"/>
+                            <field name="kolac_old_depreciation_account_code"/>
+                            <field name="kolac_old_depreciation_account_name"/>
+                            <field name="kolac_import_batch_id"/>
+                            <field name="kolac_asset_review_state"/>
+                        </group>
+                        <group string="Valores detectados">
+                            <field name="kolac_original_value_detected"/>
+                            <field name="kolac_accumulated_depreciation_detected"/>
+                            <field name="kolac_net_book_value_detected"/>
+                            <field name="kolac_acquisition_date_detected"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Referencia importación">
+                            <field name="kolac_source_file"/>
+                            <field name="kolac_source_move_number"/>
+                            <field name="kolac_source_move_ref"/>
+                            <field name="kolac_source_label"/>
+                        </group>
+                        <group string="Advertencias">
+                            <field name="kolac_warning_message" nolabel="1" widget="text"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

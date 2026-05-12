@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kolac_account_journal_import_wizard" model="ir.ui.view">
+        <field name="name">kolac.account.journal.import.wizard.form</field>
+        <field name="model">kolac.account.journal.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Migración contable KOLAC a Odoo">
+                <field name="state" invisible="1"/>
+                <sheet>
+                    <group invisible="state == 'review'" col="2">
+                        <group colspan="2">
+                            <div class="text-muted">
+                                Carga el Libro Diario oficial de KOLAC y revisa el resultado antes de confirmar la importación definitiva.
+                                El importador respetará las subcuentas originales del diario sin reagruparlas a cuentas de 6 dígitos.
+                            </div>
+                        </group>
+                        <group string="Libro Diario" colspan="2" col="2">
+                            <field name="diary_file" filename="diary_file_name" nolabel="1"/>
+                            <field name="diary_file_name" invisible="1"/>
+                            <field name="diary_sheet_name" placeholder="Primera hoja por defecto"/>
+                        </group>
+                        <group string="Configuración" colspan="2" col="2">
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="journal_id"/>
+                            <field name="create_missing_accounts"/>
+                            <field name="post_moves"/>
+                        </group>
+                    </group>
+                    <group invisible="state != 'review'">
+                        <group>
+                            <field name="company_id" groups="base.group_multi_company" readonly="1"/>
+                            <field name="journal_id" readonly="1"/>
+                            <field name="detected_move_count" readonly="1"/>
+                            <field name="detected_line_count" readonly="1"/>
+                            <field name="detected_account_count" readonly="1"/>
+                            <field name="detected_partner_count" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="detected_asset_count" readonly="1"/>
+                            <field name="detected_tax_count" readonly="1"/>
+                            <field name="warning_count" readonly="1"/>
+                            <field name="error_count" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook invisible="state != 'review'">
+                        <page string="Resumen">
+                            <field name="summary_text" nolabel="1" readonly="1" widget="text"/>
+                        </page>
+                        <page string="Mapeos">
+                            <field name="mapping_line_ids" nolabel="1">
+                                <list editable="bottom" create="0" delete="0">
+                                    <field name="source_code"/>
+                                    <field name="source_account_name"/>
+                                    <field name="mapping_type"/>
+                                    <field name="target_account_code"/>
+                                    <field name="target_account_id"/>
+                                    <field name="partner_name" optional="show"/>
+                                    <field name="partner_id" optional="show"/>
+                                    <field name="target_tax_id" optional="show"/>
+                                    <field name="review_required"/>
+                                    <field name="save_mapping"/>
+                                    <field name="warning_message" optional="show"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Activos">
+                            <field name="asset_line_ids" nolabel="1">
+                                <list editable="bottom" create="0" delete="0">
+                                    <field name="source_code"/>
+                                    <field name="asset_name"/>
+                                    <field name="target_account_id"/>
+                                    <field name="depreciation_source_code"/>
+                                    <field name="depreciation_target_account_id"/>
+                                    <field name="original_value"/>
+                                    <field name="accumulated_value"/>
+                                    <field name="residual_value"/>
+                                    <field name="state"/>
+                                    <field name="acquisition_date"/>
+                                    <field name="source_reference" optional="show"/>
+                                    <field name="source_label" optional="show"/>
+                                    <field name="create_asset"/>
+                                    <field name="asset_id" optional="show"/>
+                                    <field name="warning_message" optional="show"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Asientos preparados">
+                            <field name="move_preview_line_ids" nolabel="1">
+                                <list editable="bottom" create="0" delete="0">
+                                    <field name="old_move_number"/>
+                                    <field name="move_date"/>
+                                    <field name="reference"/>
+                                    <field name="line_count"/>
+                                    <field name="debit_total"/>
+                                    <field name="credit_total"/>
+                                    <field name="target_journal_id"/>
+                                    <field name="is_balanced"/>
+                                    <field name="status"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Logs técnicos">
+                            <field name="log_line_ids" nolabel="1">
+                                <list create="0" delete="0">
+                                    <field name="level"/>
+                                    <field name="category"/>
+                                    <field name="old_account_code" optional="show"/>
+                                    <field name="move_number" optional="show"/>
+                                    <field name="message"/>
+                                    <field name="blocking"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <footer>
+                    <button name="action_analyze" string="Analizar / Simular" type="object" class="btn-primary" data-hotkey="q" invisible="state == 'review'"/>
+                    <button name="action_back_to_upload" string="Volver" type="object" class="btn-secondary" invisible="state != 'review'"/>
+                    <button name="action_download_review_report" string="Descargar informe" type="object" class="btn-secondary" invisible="state != 'review'"/>
+                    <button name="action_confirm_import" string="Confirmar importación" type="object" class="btn-primary" data-hotkey="q" invisible="state != 'review'"/>
+                    <button string="Cancelar" class="btn-secondary" special="cancel" data-hotkey="z"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_kolac_account_journal_import_wizard" model="ir.actions.act_window">
+        <field name="name">Importar apuntes contables</field>
+        <field name="res_model">kolac.account.journal.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem id="menu_kolac_account_journal_import"
+              name="Importar apuntes contables"
+              parent="account.menu_finance_entries"
+              action="action_kolac_account_journal_import_wizard"
+              sequence="15"
+              groups="account.group_account_user"/>
+
+    <menuitem id="menu_kolac_account_journal_import_reports"
+              name="Importar apuntes contables"
+              parent="account.account_reports_management_menu"
+              action="action_kolac_account_journal_import_wizard"
+              sequence="90"
+              groups="account.group_account_user"/>
+</odoo>

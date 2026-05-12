@@ -1,0 +1,11 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_kolac_account_journal_import_wizard,kolac.account.journal.import.wizard,model_kolac_account_journal_import_wizard,account.group_account_user,1,1,1,1
+access_kolac_account_journal_import_map_line,kolac.account.journal.import.map.line,model_kolac_account_journal_import_map_line,account.group_account_user,1,1,1,1
+access_kolac_account_journal_import_asset_line,kolac.account.journal.import.asset.line,model_kolac_account_journal_import_asset_line,account.group_account_user,1,1,1,1
+access_kolac_account_journal_import_move_preview,kolac.account.journal.import.move.preview,model_kolac_account_journal_import_move_preview,account.group_account_user,1,1,1,1
+access_kolac_account_journal_import_log_line,kolac.account.journal.import.log.line,model_kolac_account_journal_import_log_line,account.group_account_user,1,1,1,1
+access_kolac_account_subaccount_map,kolac.account.subaccount.map,model_kolac_account_subaccount_map,account.group_account_user,1,1,1,1
+access_kolac_account_import_batch,kolac.account.import.batch,model_kolac_account_import_batch,account.group_account_user,1,1,1,0
+access_kolac_account_import_batch_asset,kolac.account.import.batch.asset,model_kolac_account_import_batch_asset,account.group_account_user,1,1,1,1
+access_kolac_account_import_trace,kolac.account.import.trace,model_kolac_account_import_trace,account.group_account_user,1,0,1,0
+
