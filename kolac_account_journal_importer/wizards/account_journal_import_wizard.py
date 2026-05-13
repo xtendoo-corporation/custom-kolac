@@ -1,4 +1,5 @@
 import base64
+import importlib.util
 import io
 import logging
 import re
@@ -14,6 +15,8 @@ import openpyxl
 import xlrd
 
 _logger = logging.getLogger(__name__)
+
+_ACCOUNT_ASSET_AVAILABLE = importlib.util.find_spec("odoo.addons.account_asset") is not None
 
 
 class KolacAccountJournalImportWizard(models.TransientModel):
@@ -837,7 +840,7 @@ class KolacAccountJournalImportWizard(models.TransientModel):
 
     @staticmethod
     def _prepare_batch_asset_line_vals(line_vals):
-        return {
+        vals = {
             "source_code": line_vals.get("source_code"),
             "old_account_name": line_vals.get("old_account_name"),
             "asset_name": line_vals.get("asset_name"),
@@ -850,7 +853,6 @@ class KolacAccountJournalImportWizard(models.TransientModel):
             "residual_value": line_vals.get("residual_value"),
             "acquisition_date": line_vals.get("acquisition_date"),
             "create_asset": line_vals.get("create_asset"),
-            "asset_id": line_vals.get("asset_id"),
             "state": line_vals.get("state"),
             "source_move_number": line_vals.get("source_move_number"),
             "source_reference": line_vals.get("source_reference"),
@@ -858,6 +860,9 @@ class KolacAccountJournalImportWizard(models.TransientModel):
             "source_file": line_vals.get("source_file"),
             "warning_message": line_vals.get("warning_message"),
         }
+        if _ACCOUNT_ASSET_AVAILABLE:
+            vals["asset_id"] = line_vals.get("asset_id")
+        return vals
 
     def _prepare_batch_values(self, hashes, analysis=None, dry_run=False):
         analysis = analysis or {}
@@ -978,7 +983,7 @@ class KolacAccountJournalImportWizard(models.TransientModel):
                     line_vals["tax_repartition_line_id"] = source_line["tax_repartition_line_id"]
                 created_move_lines |= move_line_model.create(line_vals)
             for move_line, source_line in zip(created_move_lines, entry["lines"]):
-                self.env["kolac.account.import.trace"].create({
+                trace_vals = {
                     "batch_id": batch.id,
                     "move_id": move.id,
                     "move_line_id": move_line.id,
@@ -990,7 +995,6 @@ class KolacAccountJournalImportWizard(models.TransientModel):
                     "original_label": source_line["original_label"],
                     "target_account_id": move_line.account_id.id,
                     "partner_id": move_line.partner_id.id,
-                    "asset_id": asset_map.get(source_line["asset_old_code"], self.env["account.asset"]).id if source_line["asset_old_code"] else False,
                     "tax_id": source_line["tax_id"],
                     "mapping_type": source_line["mapping_type"],
                     "source_file": self.diary_file_name,
@@ -998,7 +1002,10 @@ class KolacAccountJournalImportWizard(models.TransientModel):
                     "debit": float(source_line["debit"]),
                     "credit": float(source_line["credit"]),
                     "note": source_line["reference"],
-                })
+                }
+                if _ACCOUNT_ASSET_AVAILABLE and source_line["asset_old_code"]:
+                    trace_vals["asset_id"] = asset_map.get(source_line["asset_old_code"], self.env["account.asset"]).id or False
+                self.env["kolac.account.import.trace"].create(trace_vals)
 
         fiscal_warning_report = self._format_fiscal_warnings(entries)
         if fiscal_warning_report:
@@ -1110,7 +1117,6 @@ class KolacAccountJournalImportWizard(models.TransientModel):
                 "target_account_id": line.target_account_id.id,
                 "mapping_type": line.mapping_type,
                 "partner_id": line.partner_id.id,
-                "asset_id": asset_map.get(line.source_code, line.asset_id).id if asset_map.get(line.source_code, line.asset_id) else False,
                 "tax_id": line.target_tax_id.id,
                 "action": line.action,
                 "state": "manual" if line.review_required else "auto",
@@ -1118,6 +1124,9 @@ class KolacAccountJournalImportWizard(models.TransientModel):
                 "warning_message": line.warning_message,
                 "import_batch_id": batch.id,
             }
+            if _ACCOUNT_ASSET_AVAILABLE:
+                resolved_asset = asset_map.get(line.source_code, getattr(line, "asset_id", False))
+                values["asset_id"] = resolved_asset.id if resolved_asset else False
             if mapping:
                 mapping.write(values)
             else:
@@ -1140,7 +1149,11 @@ class KolacAccountJournalImportWizard(models.TransientModel):
                 _("La cuenta final %s no existe y no está autorizado crearla automáticamente.")
                 % mapping_line.target_account_code
             )
-        create_vals = self._get_missing_account_vals(mapping_line.target_account_code, mapping_line.source_account_name)
+        create_vals = self._get_missing_account_vals(
+            mapping_line.target_account_code,
+            mapping_line.source_account_name,
+            mapping_type=mapping_line.mapping_type,
+        )
         if not create_vals:
             raise UserError(
                 _("No se ha podido inferir cómo crear la cuenta final %s.") % mapping_line.target_account_code
@@ -1171,7 +1184,7 @@ class KolacAccountJournalImportWizard(models.TransientModel):
         if partner_candidates:
             mapping_line.partner_id = partner_candidates.id
             return partner_candidates
-        partner = self.env["res.partner"].with_company(self.company_id).create({
+        partner = self.env["res.partner"].sudo().with_company(self.company_id).create({
             "name": mapping_line.partner_name,
             "company_id": self.company_id.id,
             "company_type": "company",
@@ -1427,7 +1440,7 @@ class KolacAccountJournalImportWizard(models.TransientModel):
                 blocking=review_required and mapping_type == "review_required",
             ))
 
-        return {
+        vals = {
             "source_code": old_code,
             "source_account_name": source_name,
             "source_origin": source_origin,
@@ -1448,8 +1461,10 @@ class KolacAccountJournalImportWizard(models.TransientModel):
             "account_list_name": account_list_data.get("name"),
             "debit_total": float(summary["debit"]),
             "credit_total": float(summary["credit"]),
-            "asset_id": saved_mapping.asset_id.id,
         }
+        if _ACCOUNT_ASSET_AVAILABLE:
+            vals["asset_id"] = getattr(saved_mapping, "asset_id", False) and saved_mapping.asset_id.id or False
+        return vals
 
     def _build_move_preview_lines(self, entries, mapping_by_code, log_lines):
         preview_lines = []
@@ -1592,12 +1607,13 @@ class KolacAccountJournalImportWizard(models.TransientModel):
                 "create_asset": create_asset,
                 "state": state,
                 "warning_message": "\n".join(warnings),
-                "asset_id": mapping.get("asset_id") or False,
                 "source_move_number": source_sample.get("old_move_number"),
                 "source_reference": source_sample.get("reference"),
                 "source_label": source_sample.get("description") or source_sample.get("concept"),
                 "source_file": self.diary_file_name,
             })
+            if _ACCOUNT_ASSET_AVAILABLE:
+                asset_lines[-1]["asset_id"] = mapping.get("asset_id") or False
 
         for old_code, mapping in mapping_by_code.items():
             if mapping["mapping_type"] != "accumulated_depreciation":
@@ -2025,7 +2041,7 @@ class KolacAccountJournalImportWizard(models.TransientModel):
         template = self._find_template_account(code)
         group = self._find_matching_group(code)
         default_vals = self._get_missing_account_defaults(code)
-        if not template and not group and not default_vals:
+        if not template and not group and not default_vals and not mapping_type:
             return {}
         vals = {
             "code": code,
@@ -2052,7 +2068,29 @@ class KolacAccountJournalImportWizard(models.TransientModel):
             vals.update(default_vals)
         elif mapping_type:
             vals.update(self._get_mapping_type_account_vals(mapping_type))
+        if "account_type" not in vals:
+            inferred_type = self._infer_account_type_from_code(code)
+            if inferred_type:
+                vals["account_type"] = inferred_type
         return vals
+
+    @staticmethod
+    def _infer_account_type_from_code(code):
+        if not code:
+            return False
+        first = str(code)[0]
+        type_by_prefix = {
+            "1": "equity",
+            "2": "asset_fixed",
+            "3": "asset_current",
+            "4": "liability_payable",
+            "5": "asset_cash",
+            "6": "expense",
+            "7": "income",
+            "8": "equity",
+            "9": "equity",
+        }
+        return type_by_prefix.get(first)
 
     def _can_auto_create_missing_account(self, code):
         if not code or len(code) < 3:
@@ -2403,7 +2441,8 @@ class KolacAccountJournalImportMapLine(models.TransientModel):
     partner_name = fields.Char(string="Contacto detectado")
     partner_id = fields.Many2one("res.partner", string="Contacto")
     target_tax_id = fields.Many2one("account.tax", string="Impuesto sugerido")
-    asset_id = fields.Many2one("account.asset", string="Activo existente")
+    if _ACCOUNT_ASSET_AVAILABLE:
+        asset_id = fields.Many2one("account.asset", string="Activo existente")
     suggestion_origin = fields.Selection(
         [("saved", "Guardado"), ("suggested", "Inferido"), ("none", "Sin sugerencia")],
         string="Origen sugerencia",
@@ -2439,7 +2478,8 @@ class KolacAccountJournalImportAssetLine(models.TransientModel):
     residual_value = fields.Monetary(string="Pendiente", currency_field="company_currency_id", readonly=True)
     acquisition_date = fields.Date(string="Fecha adquisición")
     create_asset = fields.Boolean(string="Crear activo")
-    asset_id = fields.Many2one("account.asset", string="Activo Odoo")
+    if _ACCOUNT_ASSET_AVAILABLE:
+        asset_id = fields.Many2one("account.asset", string="Activo Odoo")
     state = fields.Selection(
         [
             ("mapped_with_asset", "Listo para crear activo"),

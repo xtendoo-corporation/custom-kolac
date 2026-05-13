@@ -11,8 +11,8 @@
                 <field name="mapping_type"/>
                 <field name="target_account_id"/>
                 <field name="partner_id" optional="show"/>
-                <field name="asset_id" optional="show"/>
-                <field name="tax_id" optional="show"/>
+                                <!-- asset_id se muestra solo si account_asset (Enterprise) está instalado -->
+                                <field name="tax_id" optional="show"/>
                 <field name="review_required" optional="show"/>
                 <field name="state" optional="show"/>
                 <field name="note" optional="hide"/>
@@ -35,7 +35,7 @@
                         <field name="target_account_id"/>
                         <field name="target_account_code" readonly="1"/>
                         <field name="partner_id"/>
-                        <field name="asset_id"/>
+                        <!-- asset_id se muestra solo si account_asset (Enterprise) está instalado -->
                         <field name="tax_id"/>
                         <field name="action"/>
                         <field name="state"/>

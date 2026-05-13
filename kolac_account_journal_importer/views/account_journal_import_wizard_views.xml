@@ -74,13 +74,13 @@
                                     <field name="original_value"/>
                                     <field name="accumulated_value"/>
                                     <field name="residual_value"/>
-                                    <field name="state"/>
-                                    <field name="acquisition_date"/>
-                                    <field name="source_reference" optional="show"/>
-                                    <field name="source_label" optional="show"/>
-                                    <field name="create_asset"/>
-                                    <field name="asset_id" optional="show"/>
-                                    <field name="warning_message" optional="show"/>
+                                     <field name="state"/>
+                                     <field name="acquisition_date"/>
+                                     <field name="source_reference" optional="show"/>
+                                     <field name="source_label" optional="show"/>
+                                     <field name="create_asset"/>
+                                     <!-- asset_id solo disponible con account_asset (Enterprise) -->
+                                     <field name="warning_message" optional="show"/>
                                 </list>
                             </field>
                         </page>

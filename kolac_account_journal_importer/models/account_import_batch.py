@@ -1,6 +1,9 @@
 import hashlib
+import importlib.util
 
 from odoo import fields, models
+
+_ACCOUNT_ASSET_AVAILABLE = importlib.util.find_spec("odoo.addons.account_asset") is not None
 
 
 class KolacAccountImportBatch(models.Model):
@@ -114,7 +117,8 @@ class KolacAccountImportTrace(models.Model):
     target_account_id = fields.Many2one("account.account", string="Cuenta Odoo", ondelete="set null")
     mapped_account_code = fields.Char(related="target_account_id.code", string="Código cuenta final", store=True, readonly=True)
     partner_id = fields.Many2one("res.partner", string="Contacto", ondelete="set null")
-    asset_id = fields.Many2one("account.asset", string="Activo", ondelete="set null")
+    if _ACCOUNT_ASSET_AVAILABLE:
+        asset_id = fields.Many2one("account.asset", string="Activo", ondelete="set null")
     tax_id = fields.Many2one("account.tax", string="Impuesto", ondelete="set null")
     mapping_type = fields.Selection(
         [
@@ -167,7 +171,8 @@ class KolacAccountImportBatchAsset(models.Model):
     residual_value = fields.Monetary(string="Pendiente", currency_field="company_currency_id")
     acquisition_date = fields.Date(string="Fecha adquisición")
     create_asset = fields.Boolean(string="Crear activo")
-    asset_id = fields.Many2one("account.asset", string="Activo Odoo", ondelete="set null")
+    if _ACCOUNT_ASSET_AVAILABLE:
+        asset_id = fields.Many2one("account.asset", string="Activo Odoo", ondelete="set null")
     state = fields.Selection(
         [
             ("mapped_with_asset", "Listo para crear activo"),

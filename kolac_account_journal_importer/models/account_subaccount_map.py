@@ -1,4 +1,8 @@
+import importlib.util
+
 from odoo import fields, models
+
+_ACCOUNT_ASSET_AVAILABLE = importlib.util.find_spec("odoo.addons.account_asset") is not None
 
 
 class KolacAccountSubaccountMap(models.Model):
@@ -46,7 +50,8 @@ class KolacAccountSubaccountMap(models.Model):
     target_account_code = fields.Char(string="Código Odoo", related="target_account_id.code", store=True)
     mapping_type = fields.Selection(MAPPING_TYPES, string="Tipo de mapeo", default="direct_account", required=True)
     partner_id = fields.Many2one("res.partner", string="Contacto")
-    asset_id = fields.Many2one("account.asset", string="Activo")
+    if _ACCOUNT_ASSET_AVAILABLE:
+        asset_id = fields.Many2one("account.asset", string="Activo")
     tax_id = fields.Many2one("account.tax", string="Impuesto")
     action = fields.Selection(
         [("reuse", "Reutilizar"), ("create_partner", "Crear contacto"), ("create_asset", "Crear activo"), ("review", "Revisar")],

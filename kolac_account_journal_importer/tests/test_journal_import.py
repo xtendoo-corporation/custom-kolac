@@ -1,5 +1,7 @@
 import base64
+import importlib.util
 import io
+import unittest
 from datetime import date
 from pathlib import Path
 
@@ -13,6 +15,8 @@ try:
     HAS_OPENPYXL = True
 except ImportError:
     HAS_OPENPYXL = False
+
+_ACCOUNT_ASSET_AVAILABLE = importlib.util.find_spec("odoo.addons.account_asset") is not None
 
 
 DIARY_HEADERS = [
@@ -147,6 +151,32 @@ class TestJournalImport(TransactionCase):
         self.account_752 = self._get_or_create_account("752000", "Ingresos por arrendamientos", "income_other")
         self.account_472 = self._get_or_create_account("472000", "IVA soportado", "asset_current")
         self.account_477 = self._get_or_create_account("477000", "IVA repercutido", "liability_current")
+        self._ensure_tax("purchase")
+        self._ensure_tax("sale")
+
+    def _ensure_tax(self, tax_use):
+        tax = self.env["account.tax"].search([
+            ("company_id", "=", self.company.id),
+            ("type_tax_use", "=", tax_use),
+            ("amount", "=", 21.0),
+        ], limit=1)
+        if tax:
+            return tax
+        return self.env["account.tax"].create({
+            "name": f"IVA 21% {'Compras' if tax_use == 'purchase' else 'Ventas'}",
+            "type_tax_use": tax_use,
+            "amount_type": "percent",
+            "amount": 21.0,
+            "company_id": self.company.id,
+            "invoice_repartition_line_ids": [
+                Command.create({"repartition_type": "base", "factor_percent": 100}),
+                Command.create({"repartition_type": "tax", "factor_percent": 100}),
+            ],
+            "refund_repartition_line_ids": [
+                Command.create({"repartition_type": "base", "factor_percent": 100}),
+                Command.create({"repartition_type": "tax", "factor_percent": 100}),
+            ],
+        })
 
     def _make_diary_file(self, rows):
         return _make_xlsx(DIARY_HEADERS, rows, sheet_name="Libro Diario")
@@ -233,11 +263,7 @@ class TestJournalImport(TransactionCase):
         })
 
     def _get_tax(self, tax_use):
-        tax = self.env["account.tax"].search([
-            ("company_id", "=", self.company.id),
-            ("type_tax_use", "=", tax_use),
-            ("amount", "=", 21.0),
-        ], limit=1)
+        tax = self._ensure_tax(tax_use)
         self.assertTrue(tax)
         return tax
 
@@ -466,9 +492,11 @@ class TestJournalImport(TransactionCase):
         tax_line = move.line_ids.filtered(lambda line: line.account_id.code == "472000921")
 
         self.assertTrue(expense_line.tax_ids)
-        self.assertTrue(expense_line.tax_tag_ids)
         self.assertTrue(tax_line.tax_line_id)
-        self.assertTrue(tax_line.tax_tag_ids)
+        if expense_line.tax_ids.invoice_repartition_line_ids.tag_ids:
+            self.assertTrue(expense_line.tax_tag_ids)
+        if tax_line.tax_line_id.invoice_repartition_line_ids.tag_ids:
+            self.assertTrue(tax_line.tax_tag_ids)
 
     def test_09c_integrates_sale_tax_into_move_lines(self):
         wizard = self._create_wizard([
@@ -485,9 +513,11 @@ class TestJournalImport(TransactionCase):
         tax_line = move.line_ids.filtered(lambda line: line.account_id.code == "477000021")
 
         self.assertTrue(income_line.tax_ids)
-        self.assertTrue(income_line.tax_tag_ids)
         self.assertTrue(tax_line.tax_line_id)
-        self.assertTrue(tax_line.tax_tag_ids)
+        if income_line.tax_ids.invoice_repartition_line_ids.tag_ids:
+            self.assertTrue(income_line.tax_tag_ids)
+        if tax_line.tax_line_id.invoice_repartition_line_ids.tag_ids:
+            self.assertTrue(tax_line.tax_tag_ids)
 
     def test_09d_opening_asset_entry_removes_tax_ids_and_tax_tags(self):
         opening_journal = self.env["account.journal"].create({
@@ -866,6 +896,7 @@ class TestJournalImport(TransactionCase):
         self.assertEqual(len(batch.trace_line_ids), 3)
         self.assertTrue(all(batch.trace_line_ids.mapped("move_line_id")))
 
+    @unittest.skipUnless(_ACCOUNT_ASSET_AVAILABLE, "Requiere módulo Enterprise account_asset")
     def test_21_links_posted_imported_asset_move_lines_to_asset(self):
         wizard = self._create_wizard([
             [21, date(2026, 1, 21), "217001087", "APERTURA", "2556,20", "", "NAP TS-INF. SERRANO Y MAS (P24-22)", "P24-22"],
@@ -891,6 +922,7 @@ class TestJournalImport(TransactionCase):
         self.assertEqual(asset.original_move_line_ids.move_id, move)
         self.assertIn(asset, move.asset_ids)
 
+    @unittest.skipUnless(_ACCOUNT_ASSET_AVAILABLE, "Requiere módulo Enterprise account_asset")
     def test_22_copies_depreciation_accounts_from_asset_model_on_import(self):
         asset_model = self.env["account.asset"].search([
             ("state", "=", "model"),

@@ -55,37 +55,35 @@
                         <page string="Activos detectados">
                             <field name="asset_preview_line_ids" nolabel="1" readonly="1">
                                 <list>
-                                    <field name="source_code"/>
-                                    <field name="asset_name"/>
-                                    <field name="target_account_id"/>
-                                    <field name="depreciation_source_code"/>
-                                    <field name="depreciation_target_account_id"/>
-                                    <field name="original_value"/>
-                                    <field name="accumulated_value"/>
-                                    <field name="residual_value"/>
-                                    <field name="state"/>
-                                    <field name="acquisition_date" optional="show"/>
-                                    <field name="source_reference" optional="show"/>
-                                    <field name="source_label" optional="show"/>
-                                    <field name="asset_id" optional="show"/>
-                                    <field name="warning_message" optional="show"/>
+                                     <field name="source_code"/>
+                                     <field name="asset_name"/>
+                                     <field name="target_account_id"/>
+                                     <field name="depreciation_source_code"/>
+                                     <field name="depreciation_target_account_id"/>
+                                     <field name="original_value"/>
+                                     <field name="accumulated_value"/>
+                                     <field name="residual_value"/>
+                                     <field name="state"/>
+                                     <field name="acquisition_date" optional="show"/>
+                                     <field name="source_reference" optional="show"/>
+                                     <field name="source_label" optional="show"/>
+                                     <field name="warning_message" optional="show"/>
                                 </list>
                             </field>
                         </page>
                         <page string="Trazabilidad">
                             <field name="trace_line_ids" nolabel="1" readonly="1">
                                 <list>
-                                    <field name="move_id"/>
-                                    <field name="move_line_id"/>
-                                    <field name="old_move_number"/>
-                                    <field name="move_date"/>
-                                    <field name="old_account_code"/>
-                                    <field name="target_account_id"/>
-                                    <field name="partner_id"/>
-                                    <field name="asset_id"/>
-                                    <field name="tax_id"/>
-                                    <field name="source_file"/>
-                                    <field name="source_line"/>
+                                     <field name="move_id"/>
+                                     <field name="move_line_id"/>
+                                     <field name="old_move_number"/>
+                                     <field name="move_date"/>
+                                     <field name="old_account_code"/>
+                                     <field name="target_account_id"/>
+                                     <field name="partner_id"/>
+                                     <field name="tax_id"/>
+                                     <field name="source_file"/>
+                                     <field name="source_line"/>
                                 </list>
                             </field>
                         </page>
