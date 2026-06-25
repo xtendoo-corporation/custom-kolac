@@ -520,7 +520,7 @@ class TestJournalImport(TransactionCase):
         with self.assertRaises(UserError):
             wizard.action_confirm_import()
 
-    def test_07_detects_duplicate_imports(self):
+    def test_07_allows_reimporting_previous_imports(self):
         diary_rows = [
             [7, date(2026, 1, 7), "430000001", "FACTURA", "121,00", "", "Cliente A", "FAC-7"],
             [7, date(2026, 1, 7), "700000123", "FACTURA", "", "100,00", "Venta", "FAC-7"],
@@ -530,10 +530,22 @@ class TestJournalImport(TransactionCase):
         wizard.action_analyze()
         wizard.action_confirm_import()
 
+        batch_model = self.env["kolac.account.import.batch"]
+        first_done = batch_model.search_count([
+            ("company_id", "=", self.company.id),
+            ("state", "=", "done"),
+        ])
+
         wizard_2 = self._create_wizard(diary_rows, self._default_account_list_rows(), self._default_account_plan_rows(), create_missing_accounts=True)
         wizard_2.action_analyze()
-        with self.assertRaises(UserError):
-            wizard_2.action_confirm_import()
+        result = wizard_2.action_confirm_import()
+
+        self.assertEqual(result.get("res_model"), "account.move")
+        second_done = batch_model.search_count([
+            ("company_id", "=", self.company.id),
+            ("state", "=", "done"),
+        ])
+        self.assertEqual(second_done, first_done + 1)
 
     def test_08_generates_tax_mapping_warning_but_preserves_tax_subaccount(self):
         wizard = self._create_wizard([

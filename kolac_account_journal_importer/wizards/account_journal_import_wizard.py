@@ -484,7 +484,6 @@ class KolacAccountJournalImportWizard(models.TransientModel):
         entries, diary_hashes = self._build_import_entries()
         batch = self._create_batch(diary_hashes)
         asset_map = self._ensure_assets(batch)
-        self._validate_no_duplicate_entries(entries)
         created_moves = self._create_moves(entries, batch, asset_map)
         self._save_selected_mappings(batch, asset_map)
         batch.write({
@@ -909,46 +908,12 @@ class KolacAccountJournalImportWizard(models.TransientModel):
 
     def _create_batch(self, hashes):
         batch_model = self.env["kolac.account.import.batch"]
-        signature = batch_model.build_signature(
-            hashes["diary_file_hash"],
-            hashes["account_list_file_hash"],
-            hashes["account_plan_file_hash"],
-            self.company_id.id,
-        )
-        duplicated_batch = batch_model.search([
-            ("company_id", "=", self.company_id.id),
-            ("import_signature", "=", signature),
-            ("state", "=", "done"),
-            ("id", "!=", self.preview_batch_id.id),
-        ], limit=1)
-        if duplicated_batch:
-            raise UserError(
-                _("Ya existe una importación previa con la misma combinación de ficheros: %s.")
-                % duplicated_batch.display_name
-            )
         batch = self.preview_batch_id.exists()
         values = self._prepare_batch_values(hashes, dry_run=False)
         if batch:
             batch.write(values)
             return batch
         return batch_model.create(values)
-
-    def _validate_no_duplicate_entries(self, entries):
-        trace_model = self.env["kolac.account.import.trace"]
-        duplicates = []
-        for entry in entries:
-            existing = trace_model.search([
-                ("company_id", "=", self.company_id.id),
-                ("old_move_number", "=", entry["old_move_number"]),
-                ("move_date", "=", entry["date"]),
-                ("old_move_ref", "=", entry["reference"] or False),
-            ], limit=1)
-            if existing:
-                duplicates.append(entry["old_move_number"])
-        if duplicates:
-            raise UserError(
-                _("Se han detectado asientos ya importados previamente: %s") % ", ".join(sorted(set(duplicates)))
-            )
 
     def _create_moves(self, entries, batch, asset_map):
         move_model = self.env["account.move"].with_company(self.company_id).with_context(
