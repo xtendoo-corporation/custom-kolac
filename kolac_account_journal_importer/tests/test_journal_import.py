@@ -55,15 +55,24 @@ def _make_xlsx(headers, data_rows, sheet_name="Datos"):
     return base64.b64encode(buffer.getvalue())
 
 
-def _make_official_diary_xlsx(data_rows, year=2024):
+def _make_official_diary_xlsx(data_rows, year=2024, include_year_line=True):
     workbook = openpyxl.Workbook()
     sheet = workbook.active
     sheet.title = "Diario de movimientos oficial"
-    sheet.append(["ISJALU 2015 SOCIEDAD LIMITADA"])
+    if include_year_line:
+        sheet.append(["ISJALU 2015 SOCIEDAD LIMITADA"])
+    else:
+        sheet.append(["EMPRESA DE EJEMPLO SOCIEDAD LIMITADA"])
     sheet.append(["Usuario: Carlos"])
-    sheet.append(["Fecha: 08/05/2026 - 12:40:56"])
+    if include_year_line:
+        sheet.append(["Fecha: 08/05/2026 - 12:40:56"])
+    else:
+        sheet.append(["Fecha de emisión: 08/05 - 12:40:56"])
     sheet.append(["Diario de movimientos oficial"])
-    sheet.append([f"Movimientos desde el da 01/01/{year} hasta el 31/12/{year} (Euros)"])
+    if include_year_line:
+        sheet.append([f"Movimientos desde el da 01/01/{year} hasta el 31/12/{year} (Euros)"])
+    else:
+        sheet.append(["Movimientos del ejercicio (Euros)"])
     sheet.append([])
     sheet.append(OFFICIAL_DIARY_HEADERS)
     for row in data_rows:
@@ -181,8 +190,8 @@ class TestJournalImport(TransactionCase):
     def _make_diary_file(self, rows):
         return _make_xlsx(DIARY_HEADERS, rows, sheet_name="Libro Diario")
 
-    def _make_official_diary_file(self, rows, year=2024):
-        return _make_official_diary_xlsx(rows, year=year)
+    def _make_official_diary_file(self, rows, year=2024, include_year_line=True):
+        return _make_official_diary_xlsx(rows, year=year, include_year_line=include_year_line)
 
     def _make_account_list_file(self, rows):
         return _make_xlsx(REFERENCE_HEADERS, rows, sheet_name="Listado")
@@ -212,9 +221,11 @@ class TestJournalImport(TransactionCase):
         vals.update(extra_vals)
         return self.env["kolac.account.journal.import.wizard"].create(vals)
 
-    def _create_official_wizard(self, diary_rows, year=2024, **extra_vals):
+    def _create_official_wizard(self, diary_rows, year=2024, include_year_line=True, **extra_vals):
         vals = {
-            "diary_file": self._make_official_diary_file(diary_rows, year=year),
+            "diary_file": self._make_official_diary_file(
+                diary_rows, year=year, include_year_line=include_year_line
+            ),
             "diary_file_name": f"ISJ {year} Diario de movimientos oficial.XLSX",
             "company_id": self.company.id,
             "journal_id": self.journal.id,
@@ -350,6 +361,83 @@ class TestJournalImport(TransactionCase):
         self.assertGreaterEqual(wizard.detected_line_count, 1500)
         self.assertGreaterEqual(wizard.detected_account_count, 100)
         self.assertFalse(wizard.log_line_ids.filtered(lambda line: line.category == "sources"))
+
+    def test_01e_report_year_resolves_dates_when_file_has_no_year(self):
+        wizard = self._create_official_wizard(
+            [
+                ["15-Ene.", 2, 1, 15, "430000007", "SOLORA PROYECT SL", "FRA 005", 121.0, None],
+                ["15-Ene.", 2, 2, 15, "752000001", "ARRENDAMIENTOS", "FRA 005", None, 121.0],
+            ],
+            include_year_line=False,
+            diary_file_name="Diario de movimientos oficial.XLSX",
+            report_year=2024,
+            create_missing_accounts=True,
+        )
+
+        wizard.action_analyze()
+
+        self.assertEqual(wizard.detected_move_count, 1)
+        self.assertEqual(wizard.move_preview_line_ids.move_date, date(2024, 1, 15))
+
+    def test_01f_report_year_overrides_year_guessed_from_file(self):
+        wizard = self._create_official_wizard(
+            [
+                ["15-Ene.", 2, 1, 15, "430000007", "SOLORA PROYECT SL", "FRA 005", 121.0, None],
+                ["15-Ene.", 2, 2, 15, "752000001", "ARRENDAMIENTOS", "FRA 005", None, 121.0],
+            ],
+            year=2024,
+            report_year=2025,
+            create_missing_accounts=True,
+        )
+
+        wizard.action_analyze()
+
+        self.assertEqual(wizard.move_preview_line_ids.move_date, date(2025, 1, 15))
+
+    def test_01g_report_year_resolves_numeric_day_month_dates(self):
+        wizard = self._create_official_wizard(
+            [
+                ["15/01", 2, 1, 15, "430000007", "SOLORA PROYECT SL", "FRA 005", 121.0, None],
+                ["15/01", 2, 2, 15, "752000001", "ARRENDAMIENTOS", "FRA 005", None, 121.0],
+            ],
+            include_year_line=False,
+            diary_file_name="Diario de movimientos oficial.XLSX",
+            report_year=2024,
+            create_missing_accounts=True,
+        )
+
+        wizard.action_analyze()
+
+        self.assertEqual(wizard.move_preview_line_ids.move_date, date(2024, 1, 15))
+
+    def test_01h_missing_year_raises_actionable_error(self):
+        wizard = self._create_official_wizard(
+            [
+                ["15-Ene.", 2, 1, 15, "430000007", "SOLORA PROYECT SL", "FRA 005", 121.0, None],
+                ["15-Ene.", 2, 2, 15, "752000001", "ARRENDAMIENTOS", "FRA 005", None, 121.0],
+            ],
+            include_year_line=False,
+            diary_file_name="Diario de movimientos oficial.XLSX",
+            create_missing_accounts=True,
+        )
+
+        with self.assertRaises(UserError) as error:
+            wizard.action_analyze()
+
+        self.assertIn("Año del ejercicio", error.exception.args[0])
+
+    def test_01i_invalid_report_year_is_rejected(self):
+        wizard = self._create_official_wizard(
+            [
+                ["15-Ene.", 2, 1, 15, "430000007", "SOLORA PROYECT SL", "FRA 005", 121.0, None],
+                ["15-Ene.", 2, 2, 15, "752000001", "ARRENDAMIENTOS", "FRA 005", None, 121.0],
+            ],
+            report_year=12,
+            create_missing_accounts=True,
+        )
+
+        with self.assertRaises(UserError):
+            wizard.action_analyze()
 
     def test_02_maps_customer_account_to_partner_and_preserves_subaccount(self):
         wizard = self._create_wizard([

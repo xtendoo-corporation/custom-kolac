@@ -386,6 +386,15 @@ class KolacAccountJournalImportWizard(models.TransientModel):
         help="Se podrán crear automáticamente las subcuentas que no existan todavía en Odoo respetando el código original del diario.",
     )
     post_moves = fields.Boolean(string="Publicar asientos válidos", default=False)
+    report_year = fields.Integer(
+        string="Año del ejercicio",
+        help=(
+            "Año al que corresponde la importación. Se utiliza para interpretar las "
+            "fechas de la columna de fecha del Libro Diario cuando solo indican día y "
+            "mes (por ejemplo, '15-Ene.' o '15/01'). Si se deja vacío, se intentará "
+            "deducir del propio fichero."
+        ),
+    )
     state = fields.Selection(
         [("upload", "Carga"), ("review", "Revisión")],
         string="Estado",
@@ -1254,8 +1263,9 @@ class KolacAccountJournalImportWizard(models.TransientModel):
                 continue
             data_started = True
             move_number = self._cell_to_text(self._get_value(row, columns, "asiento"))
+            raw_date_value = self._get_value(row, columns, "fecha")
             entry_date = self._parse_date(
-                self._get_value(row, columns, "fecha"),
+                raw_date_value,
                 default_year=report_year,
             )
             old_account_code = self._sanitize_old_account_code(self._get_value(row, columns, "subcuenta"))
@@ -1272,6 +1282,15 @@ class KolacAccountJournalImportWizard(models.TransientModel):
             if not any([move_number, entry_date, old_account_code, concept, description, debit, credit]):
                 continue
             if not move_number or not entry_date or not old_account_code:
+                if not entry_date and raw_date_value not in (None, False, ""):
+                    raise UserError(_(
+                        "No se ha podido interpretar la fecha '%(value)s' de la fila "
+                        "%(row)s del Libro Diario. Indique el 'Año del ejercicio' en el "
+                        "asistente de importación para resolver fechas sin año."
+                    ) % {
+                        "value": self._cell_to_text(raw_date_value),
+                        "row": row_number,
+                    })
                 raise UserError(_("La fila %s del Libro Diario carece de datos obligatorios.") % row_number)
             if debit and credit:
                 raise UserError(_("La fila %s informa Debe y Haber simultáneamente.") % row_number)
@@ -1298,11 +1317,21 @@ class KolacAccountJournalImportWizard(models.TransientModel):
 
     def _get_diary_context(self, rows, header_row_index, file_name=False):
         diary_format = self._detect_diary_format(rows[header_row_index])
+        report_year = self._get_effective_report_year(rows, file_name=file_name)
         return {
             "format": diary_format,
-            "report_year": self._guess_report_year(rows, file_name=file_name),
+            "report_year": report_year,
             "allows_single_file_import": diary_format == "kolac_official",
         }
+
+    def _get_effective_report_year(self, rows, file_name=False):
+        if self.report_year:
+            if not 1900 <= self.report_year <= 2200:
+                raise UserError(
+                    _("El 'Año del ejercicio' indicado (%s) no es válido.") % self.report_year
+                )
+            return self.report_year
+        return self._guess_report_year(rows, file_name=file_name)
 
     def _detect_diary_format(self, header_row):
         normalized_headers = {
@@ -2300,6 +2329,21 @@ class KolacAccountJournalImportWizard(models.TransientModel):
                 return datetime.strptime(text, fmt).date()
             except ValueError:
                 continue
+        numeric_match = re.match(
+            r"^(?P<day>\d{1,2})[-/](?P<month>\d{1,2})(?:[-/](?P<year>\d{2,4}))?$",
+            text,
+        )
+        if numeric_match:
+            month = int(numeric_match.group("month"))
+            year = numeric_match.group("year")
+            if 1 <= month <= 12 and (year or default_year):
+                resolved_year = int(year) if year else int(default_year)
+                if resolved_year < 100:
+                    resolved_year += 2000
+                try:
+                    return date(resolved_year, month, int(numeric_match.group("day")))
+                except ValueError:
+                    return False
         month_match = re.match(
             r"^(?P<day>\d{1,2})[-/ ](?P<month>[A-Za-zÁÉÍÓÚÜÑáéíóúüñ.]+)(?:[-/ ](?P<year>\d{2,4}))?\.?$",
             text,
