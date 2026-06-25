@@ -832,7 +832,7 @@ class KolacAccountJournalImportWizard(models.TransientModel):
 
     def _upsert_review_batch(self, analysis, hashes):
         batch_model = self.env["kolac.account.import.batch"]
-        batch = self.preview_batch_id.exists()
+        batch = self._get_reusable_preview_batch()
         values = self._prepare_batch_values(hashes, analysis, dry_run=True)
         if batch:
             batch.write(values)
@@ -845,6 +845,13 @@ class KolacAccountJournalImportWizard(models.TransientModel):
             ],
         })
         return batch
+
+    def _get_reusable_preview_batch(self):
+        self.ensure_one()
+        batch = self.preview_batch_id.exists()
+        if batch and batch.dry_run and batch.state == "analyzed" and not batch.trace_line_ids:
+            return batch
+        return self.env["kolac.account.import.batch"]
 
     @staticmethod
     def _prepare_batch_asset_line_vals(line_vals):
@@ -908,12 +915,14 @@ class KolacAccountJournalImportWizard(models.TransientModel):
 
     def _create_batch(self, hashes):
         batch_model = self.env["kolac.account.import.batch"]
-        batch = self.preview_batch_id.exists()
+        batch = self._get_reusable_preview_batch()
         values = self._prepare_batch_values(hashes, dry_run=False)
         if batch:
             batch.write(values)
             return batch
-        return batch_model.create(values)
+        batch = batch_model.create(values)
+        self.preview_batch_id = batch
+        return batch
 
     def _create_moves(self, entries, batch, asset_map):
         move_model = self.env["account.move"].with_company(self.company_id).with_context(

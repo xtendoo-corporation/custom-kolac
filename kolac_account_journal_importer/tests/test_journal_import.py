@@ -547,6 +547,48 @@ class TestJournalImport(TransactionCase):
         ])
         self.assertEqual(second_done, first_done + 1)
 
+    def test_07b_reusing_wizard_keeps_previous_imports(self):
+        first_diary_rows = [
+            [701, date(2025, 1, 7), "430000001", "FACTURA", "121,00", "", "Cliente A", "FAC-701"],
+            [701, date(2025, 1, 7), "700000123", "FACTURA", "", "100,00", "Venta", "FAC-701"],
+            [701, date(2025, 1, 7), "472000921", "FACTURA", "", "21,00", "IVA soportado 21%", "FAC-701"],
+        ]
+        wizard = self._create_wizard(
+            first_diary_rows,
+            self._default_account_list_rows(),
+            self._default_account_plan_rows(),
+            create_missing_accounts=True,
+        )
+        wizard.action_analyze()
+        wizard.action_confirm_import()
+        first_batch = wizard.preview_batch_id
+        first_moves = first_batch.trace_line_ids.move_id
+        first_move_count = first_batch.move_count
+        first_line_count = first_batch.line_count
+        first_imported_at = first_batch.imported_at
+
+        second_diary_rows = [
+            [702, date(2026, 1, 8), "430000001", "FACTURA", "242,00", "", "Cliente A", "FAC-702"],
+            [702, date(2026, 1, 8), "700000123", "FACTURA", "", "200,00", "Venta", "FAC-702"],
+            [702, date(2026, 1, 8), "472000921", "FACTURA", "", "42,00", "IVA soportado 21%", "FAC-702"],
+        ]
+        wizard.write({
+            "diary_file": self._make_diary_file(second_diary_rows),
+            "diary_file_name": "Libro Diario 2026.xlsx",
+        })
+        wizard.action_analyze()
+
+        self.assertNotEqual(wizard.preview_batch_id, first_batch)
+        wizard.action_confirm_import()
+
+        self.assertTrue(first_batch.exists())
+        self.assertEqual(first_batch.state, "done")
+        self.assertFalse(first_batch.dry_run)
+        self.assertEqual(first_batch.move_count, first_move_count)
+        self.assertEqual(first_batch.line_count, first_line_count)
+        self.assertEqual(first_batch.imported_at, first_imported_at)
+        self.assertEqual(first_moves.exists(), first_moves)
+
     def test_08_generates_tax_mapping_warning_but_preserves_tax_subaccount(self):
         wizard = self._create_wizard([
             [8, date(2026, 1, 8), "472000921", "FACTURA", "21,00", "", "IVA soportado 21%", "FAC-8"],
